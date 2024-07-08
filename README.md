@@ -1,0 +1,2 @@
+# ClientServer
+PHẦN MỀM DOWNLOAD / UPLOAD FILE DÙNG KỸ THUẬT ĐA LUỒNG
