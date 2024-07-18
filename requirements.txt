@@ -1,0 +1,4 @@
+sv-ttk
+pillow
+webbrowser
+requests
