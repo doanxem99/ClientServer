@@ -78,9 +78,6 @@ python main.py
 1. Open terminal and go to virtual environment folder
 2. Use this command to activate virtual environment:
 
-1. Open terminal and go to virtual environment folder
-2. Use this command to activate virtual environment:
-
 **Window**
 ```
 call env\Scripts\activate
