@@ -1,7 +1,7 @@
 # ClientServer
 PHẦN MỀM DOWNLOAD / UPLOAD FILE DÙNG KỸ THUẬT ĐA LUỒNG, KẾT NỐI BẰNG TCP
 
-![alt text](https://github.com/doanxem99/ClientServer/blob/main/assets/image2.png?raw=true)
+![alt text](https://github.com/doanxem99/ClientServer/blob/main/assets/image2.jpg?raw=true)
 
 # User
 ---
