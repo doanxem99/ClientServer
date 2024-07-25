@@ -3,19 +3,26 @@ from tkinter import Label
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
-from PIL import Image, ImageTk
 import sv_ttk
 import os
-import threading
 import time
 import random
 import sys
 import webbrowser
+from client import call_list
+import speedtest
+from multiprocessing.pool import ThreadPool
+import threading
+import requests
+import zipfile
 
+VERSION = "v1.0.1"
 
-FileProcessing: list = []
-Information: list = []
-Error = ""
+file_processing: list = []
+information: list = []
+address_server: str = ""
+address_client: str = os.getcwd()
+error: str = ""
 
 def resource_path(relative_path):
     try:
@@ -25,37 +32,49 @@ def resource_path(relative_path):
 
     return os.path.join(base_path, relative_path)
 
-def ListFolder(tree, parent, path):
+def list_folder(tree, parent, path):
     for p in os.listdir(path):
         abspath = os.path.join(path, p)
         isdir = os.path.isdir(abspath)
         oid = tree.insert(parent, 'end', text=p, open=False)
         if isdir:
-            ListFolder(tree, oid, abspath)
+            list_folder(tree, oid, abspath)
 
 class MenuBar(tk.Menu):
     def __init__(self, parent, list_file, client_server_folder):
         super().__init__(parent)
 
+        self.update_app(VERSION, False)
+
         file_menu = tk.Menu(self, tearoff=0)
         file_menu.add_command(label="Open File", command=lambda: self.open_file(list_file))
         file_menu.add_command(label="Open Folder", command=lambda: self.open_folder(client_server_folder))
+        file_menu.add_command(label="Clear Processing", command=lambda: self.clear_processing(list_file))
+        file_menu.add_command(label="Clear History", command=lambda: self.clear_history(list_file))
+        file_menu.add_command(label="Reset Server", command=self.reset_server)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=parent.quit)
         self.add_cascade(label="Tasks", menu=file_menu)
         
         setting_menu = tk.Menu(self, tearoff=0)
-        setting_menu.add_command(label="Theme", command=self.theme)
+        sub_menu = tk.Menu(setting_menu, tearoff=0)
+        sub_menu.add_command(label="Light", command=lambda: sv_ttk.set_theme("light"))
+        sub_menu.add_command(label="Dark", command=lambda: sv_ttk.set_theme("dark"))
+        setting_menu.add_cascade(
+            label="Theme",
+            menu=sub_menu,
+        )
         self.add_cascade(label="Settings", menu=setting_menu)
 
         help_menu = tk.Menu(self, tearoff=0)
         help_menu.add_command(label="About", command=self.about)
         help_menu.add_command(label="Contact Support", command=lambda: webbrowser.open("https://www.facebook.com/profile.php?id=100012655329823"))
+        help_menu.add_command(label="Update", command=lambda: self.update_app(VERSION, True))
         self.add_cascade(label="Help", menu=help_menu)
 
+    
     def about(self):
         messagebox.showinfo("About", "This is a simple client-server application. It allows you to download files from the server and upload files to the server.\n ----------------- \n The application is developed by a group of 3 students: Nguyễn Đình Mạnh, Châu Đình Phúc, Nguyễn Trọng Nhân.")
-
         
 
     def theme(self):
@@ -63,27 +82,69 @@ class MenuBar(tk.Menu):
     
     def open_file(self, list_file):
         file_path = filedialog.askopenfilename()
+        if file_path == "":
+            return
         name_file = os.path.basename(file_path)
         data = (file_path, name_file, "Download")
         list_file.update_treeview_processing(data)
-        FileProcessing.append(data)
+        file_processing.append(data)
 
     def open_folder(self, client_server_folder):
         folder_path = filedialog.askdirectory()
+        if folder_path == "":
+            return
         # Delete all item in tree
         for item in client_server_folder.tree_Client.get_children():
             client_server_folder.tree_Client.delete(item)
         # Add new item
-        ListFolder(client_server_folder.tree_Client, '', folder_path)
+        list_folder(client_server_folder.tree_Client, '', folder_path)
+
+    def reset_server(self):
+        call_list()
+
+    def update_app(self, current_version, announcement):
+        try:
+            url = f"https://api.github.com/repos/doanxem99/ClientServer/releases"
+            response = requests.get(url)
+            # Get the latest release info
+            if response.status_code == 200:
+                release_info = response.json()
+                zip_url = release_info[0].get('zipball_url')
+                latest_version = release_info[0].get('tag_name')
+                if latest_version != current_version:
+                    answer = messagebox.askokcancel("Update", "A new version is available. Do you want to update?")
+                    if answer:
+                        with open("./update.zip", "wb") as file:
+                            response_zip = requests.get(zip_url)
+                            file.write(response_zip.content)
+                        with zipfile.ZipFile("./update.zip") as zip_ref:
+                            zip_ref.extractall(".")
+                        messagebox.showinfo("Update", "The application has been updated. Please restart the application.")
+                elif announcement == True:
+                    messagebox.showinfo("Update", "You are using the latest version.")
+                    
+        except requests.exceptions.RequestException as e:
+            messagebox.showerror("Update", "Error: Cannot connect to the server. Please check your internet connection.")
+
+    def clear_processing(self, list_file):
+        for item in list_file.tree_processing.get_children():
+            list_file.tree_processing.delete(item)
+        file_processing.clear()
+    
+    def clear_history(self, list_file):
+        for item in list_file.tree_processed.get_children():
+            list_file.tree_processed.delete(item)
 
 
-class InputPerson(ttk.LabelFrame):
+class InputInfor(ttk.LabelFrame):
     def __init__(self, parent):
         super().__init__(parent, padding=15)
 
         custom_label = ttk.Label(self, text="Information", font=("Arial", 14, "bold"))
         self['labelwidget'] = custom_label
+        
         self.columnconfigure(0, weight=1)
+        self.rowconfigure(0, weight=1)
 
         self.add_widgets()
 
@@ -133,40 +194,151 @@ class InputPerson(ttk.LabelFrame):
         return False
 
 
-class RadioButton(ttk.Frame):
+class Method(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, padding=15)
 
-        self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
-
-
+        self.columnconfigure(0, weight=1)   
         self.add_widgets()
 
     def add_widgets(self):
 
         self.methods = ttk.LabelFrame(self)
         self.methods.grid(row=0, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        
+        self.methods.columnconfigure(0, weight=1)
+        self.methods.columnconfigure(1, weight=1)
 
-        img = Image.open(resource_path("assets/dragon3.png"))
-        img = img.resize((150, 100))
-        icon = ImageTk.PhotoImage(img)
-        self.icon = ttk.Label(self, image=icon)
-        # Keep a reference to the image to prevent garbage collection
-        self.icon.image = icon
-        self.icon.grid(row=2, column=0, padx=5, pady=(0, 10), sticky="s")
-
-        custom_label = ttk.Label(self.methods, text="Methods", font=("Arial", 14, "bold"))
+        custom_label = ttk.Label(self.methods, text="Method", font=("Arial", 14, "bold"))
         self.methods['labelwidget'] = custom_label
 
         self.methods.var = tk.StringVar(value="Download")
-
         # Upload and Download radio buttons
         self.radio_1 = ttk.Radiobutton(self.methods, text="Upload", variable=self.methods.var, value="Upload", state="disabled")
         self.radio_1.grid(row=0, column=0, padx=5, pady=10, sticky="w")
 
         self.radio_1 = ttk.Radiobutton(self.methods, text="Download", variable=self.methods.var, value="Download", state="disabled")
-        self.radio_1.grid(row=0, column=1, padx=(10, 5), pady=10, sticky="w")
+        self.radio_1.grid(row=0, column=1, padx=5, pady=10, sticky="w")
+
+class CheckConnection(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent, padding=15)
+        self.add_widgets()
+
+    def add_widgets(self):
+        self.labelframe = ttk.LabelFrame(self)
+        self.labelframe.pack(expand=True, fill="both")
+
+        self.label = ttk.Label(self.labelframe, text="Check Connection", font=("Arial", 14, "bold"))
+        self.labelframe['labelwidget'] = self.label
+
+        self.labelframe.columnconfigure(0, weight=1)
+        self.labelframe.columnconfigure(1, weight=1)
+        self.labelframe.columnconfigure(2, weight=1)
+
+        self.label_download = ttk.Label(self.labelframe, text="Download Speed: ", font=("Arial", 12))
+        self.label_download.grid(row=0, column=2, padx=5, pady=(10, 10), sticky="w")
+
+        self.progress_download = ttk.Progressbar(self.labelframe, length=225, mode="determinate", value=0, maximum=100)
+        self.progress_download.grid(row=1, column=2, padx=5, pady=(0, 10), sticky="w")
+
+        self.label_upload = ttk.Label(self.labelframe, text="Upload Speed: ", font=("Arial", 12))
+        self.label_upload.grid(row=2, column=2, padx=5, pady=(0, 10), sticky="w")
+
+        self.progress_upload = ttk.Progressbar(self.labelframe, length=225, mode="determinate", value=0, maximum=100)
+        self.progress_upload.grid(row=3, column=2, padx=5, pady=(0, 10), sticky="w")
+
+        self.label_ping = ttk.Label(self.labelframe, text="Ping: ", font=("Arial", 12))
+        self.label_ping.grid(row=4, column=2, padx=5, pady=(0, 10), sticky="w")
+
+        self.progress_ping = ttk.Progressbar(self.labelframe, length=225, mode="determinate", value=0, maximum=100)
+        self.progress_ping.grid(row=5, column=2, padx=5, pady=(0, 10), sticky="w")
+
+        self.progress_complete = ttk.Progressbar(self.labelframe, length=200, mode="determinate", value=0, maximum=100, orient="vertical")
+        self.progress_complete.grid(row=0, column=1, rowspan=6, padx=(5, 0), pady=(10, 10), sticky="w")
+
+        self.button = ttk.Button(self.labelframe, text="Test", style="Accent.TButton", command=self.start_speed_test)
+        self.button.grid(row=0, column=0, rowspan=6, padx=2, pady=(10, 10), sticky="ns")
+
+    def start_speed_test(self):
+        self.progress_download["value"] = 0
+        self.progress_upload["value"] = 0
+        self.progress_ping["value"] = 0
+        self.progress_complete["value"] = 0
+
+        self.button.config(state=tk.DISABLED)
+        threading.Thread(target=self.run_speed_test).start()
+
+    def run_speed_test(self):
+        pool = ThreadPool(processes=4)
+        pool.apply_async(self.animation_progress, (self.progress_complete, 0, 95))
+
+        download_speed, upload_speed, ping = self.get_speed_results()
+
+        # Download speed
+        self.progress_download["value"] = download_speed / 1000000
+        # Upload speed
+        self.progress_upload["value"] = upload_speed / 1000000
+        # Ping
+        self.progress_ping["value"] = ping
+
+        self.progress_complete["value"] = 100
+
+        # Update the label
+        self.label_download["text"] = f"Download Speed: {download_speed / 1000000:.2f} Mbps"
+        self.label_upload["text"] = f"Upload Speed: {upload_speed / 1000000:.2f} Mbps"
+        self.label_ping["text"] = f"Ping: {ping:.2f} ms"
+        if ping > 120:
+            self.label_ping["foreground"] = "red"
+        elif ping > 50:
+            self.label_ping["foreground"] = "orange"
+        else:
+            self.label_ping["foreground"] = "green"
+        if download_speed < 1000000 * 5:
+            self.label_download["foreground"] = "red"
+        elif download_speed < 5000000 * 5:
+            self.label_download["foreground"] = "orange"
+        else:
+            self.label_download["foreground"] = "green"
+        if upload_speed < 1000000 * 3:
+            self.label_upload["foreground"] = "red"
+        elif upload_speed < 5000000 * 3:
+            self.label_upload["foreground"] = "orange"
+        else:
+            self.label_upload["foreground"] = "green"
+
+        # Animate the progress bar with threading
+        pool.apply_async(self.animation_progress, (self.progress_complete, 95, 100))
+
+        pool.apply_async(self.animation_speed, (download_speed / 1000000, self.progress_download, 1))
+        pool.apply_async(self.animation_speed, (upload_speed / 1000000, self.progress_upload, 1))
+        pool.apply_async(self.animation_speed, (max(0, min(120.0 - ping, 100)), self.progress_ping, 1))
+        
+        self.button.config(state=tk.NORMAL)
+
+    def get_speed_results(self):
+        st = speedtest.Speedtest()
+        download_speed = st.download()
+        upload_speed = st.upload()
+        ping = st.results.ping
+        return download_speed, upload_speed, ping
+
+    def animation_speed(self, speed_value, progress_bar, scaling_factor):
+        max_value = speed_value * scaling_factor
+        increment = max_value / 100
+        for i in range(int(max_value) + 1):
+            if i > 0.9 * max_value:
+                break
+            progress_bar['value'] = i
+            progress_bar.update()
+            time.sleep(0.02)
+
+    def animation_progress(self, progress_bar, begin, end):
+        for i in range(begin, end + 1):
+            progress_bar['value'] = i
+            progress_bar.update()
+            time.sleep(0.20)
 
 class ClientServerFolder(ttk.LabelFrame):
     def __init__(self, parent, list_file, radio_button):
@@ -174,7 +346,6 @@ class ClientServerFolder(ttk.LabelFrame):
 
         custom_label = ttk.Label(self, text="Folder", font=("Arial", 14, "bold"))
         self['labelwidget'] = custom_label
-
 
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(expand=True, fill="both")
@@ -207,12 +378,19 @@ class ClientServerFolder(ttk.LabelFrame):
             show=("tree",),
             yscrollcommand=self.scrollbar_v.set,
             xscrollcommand=self.scrollbar_h.set,
+            cursor="hand2"
         )
 
         self.scrollbar_v.config(command=self.tree_Server.yview)
         self.scrollbar_h.config(command=self.tree_Server.xview)
         self.tree_Server.pack(expand=True, fill="both")
-        ListFolder(self.tree_Server, '', '.')
+        (error, Address_Server, data) = call_list()
+        # print(data[0])
+        if error != "":
+            messagebox.showerror("Error", "An error occurred while connecting to the server \n --------------- \n " + error)
+        else: 
+            self.convert_data_server(data)
+
 
         # Client
         self.scrollbar_v = ttk.Scrollbar(self.Client, orient="vertical")
@@ -228,12 +406,13 @@ class ClientServerFolder(ttk.LabelFrame):
             show=("tree",),
             yscrollcommand=self.scrollbar_v.set,
             xscrollcommand=self.scrollbar_h.set,
+            cursor="hand2"
         )
 
         self.scrollbar_v.config(command=self.tree_Client.yview)
         self.scrollbar_h.config(command=self.tree_Client.xview)
         self.tree_Client.pack(expand=True, fill="both")
-        ListFolder(self.tree_Client, '', '.')
+        list_folder(self.tree_Client, '', '.')
 
 
         # Bind double-click event
@@ -269,6 +448,24 @@ class ClientServerFolder(ttk.LabelFrame):
             path.insert(0, self.tree.item(parent, 'text'))
             parent = self.tree.parent(parent)
         return os.path.join(*path)
+    
+    def convert_data_server(self, data):
+        parent: list = [''] 
+        prev_level = 0
+        for item in data:
+            if item == "":
+                continue
+            level, name = item.split(' ', 1)
+            # print(level + "  |   " + name)
+            level = int(level)
+            pa = self.tree_Server.insert(parent[level - 1], 'end', text=name)
+                    
+            if level == len(parent):
+                parent.append(pa)
+            else:
+                parent[level] = pa
+            
+
 
 class ProcessButton(ttk.Frame):
     def __init__(self, parent, list_file, input_person):
@@ -297,13 +494,19 @@ class ProcessButton(ttk.Frame):
         self.tree.heading(1, text="Message")
         self.tree.column(1, width=200)
 
+        
+        self.grid_rowconfigure(1, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+        self.grid_rowconfigure(3, weight=3)
+
+
         self.tree.tag_configure("warning", foreground="orange")
         self.tree.tag_configure("error", foreground="red")
         self.tree.tag_configure("success", foreground="green")
 
     def error_message(self, input_person):
         # If list of files processing is empty, display an error message
-        if len(FileProcessing) == 0:
+        if len(file_processing) == 0:
             self.tree.insert("", "end", values=("ERROR: No files to process",), tags="error")
             return True
         # If the name and email is provided but not correct, display an error message
@@ -333,7 +536,7 @@ class ProcessButton(ttk.Frame):
         if input_person.email.get() == "":
             self.tree.insert("", "end", values=("WARNING: Email information is not found, choose default: Anonymous",), tags="warning")
 
-        # Start download
+        # Stimulation download progress bar
         self.progress["value"] = 0
         while self.progress["value"] < 100:
             time.sleep(0.1)
@@ -344,15 +547,27 @@ class ProcessButton(ttk.Frame):
                 self.progress["value"] += rand
             self.progress_label["text"] = f"{int(self.progress['value'])}%"
             self.update_idletasks()
+        
+        # Start download
+        name_file_download: list = []
+        name_file_upload: list = [] 
+        for item in file_processing:
+            if item[2] == "Download":
+                name_file_download.append((item[0], item[1]))
+            else:
+                name_file_upload.append((item[0], item[1]))
+        # if len(name_file_download) != 0:
+            # error_download = call_download(name_file_download)
+            # if error_download != "":
+            #     messagebox.showerror("Error", "An error occurred while downloading files \n --------------- \n " + error_download)
+        # if len(name_file_upload) != 0:
+            # error_upload = call_upload(name_file_upload)
+            # if error_upload != "":
+            #     messagebox.showerror("Error", "An error occurred while uploading files \n --------------- \n " + error_upload)
 
         # If the download is successful, display a success message with name, email, method, and number of files processed
-        downloaded = 0
-        uploaded = 0
-        for item in FileProcessing:
-            if item[2] == "Download":
-                downloaded += 1
-            else:
-                uploaded += 1
+        downloaded = len(name_file_download)
+        uploaded = len(name_file_upload)
         self.tree.insert("", "end", values=(f"SUCCESS: {downloaded} files is downloaded, {uploaded} files is uploaded",), tags="success")
         self.tree.insert("", "end", values=(f"Name: {"Anonymous" if input_person.name.get() == "" else input_person.name.get()}",), tags="success")
         self.tree.insert("", "end", values=(f"Email: {"Anonymous" if input_person.email.get() == "" else input_person.email.get()}",), tags="success")
@@ -372,22 +587,28 @@ class ListFile(ttk.LabelFrame):
 
         self.columnconfigure(0, weight=1)
         self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
 
         self.add_widgets()
 
     def add_widgets(self):
-        self.list_file_processing = ttk.LabelFrame(self, text="Files Processing")
-        self.list_file_processing.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
 
-        self.list_file_processed = ttk.LabelFrame(self, text="Files Processed")
-        self.list_file_processed.grid(row=1, column=0, padx=5, pady=10, sticky="nsew")
-
+        self.list_file_processing = ttk.LabelFrame(self, text="Processing")
+        self.list_file_processing.grid(row=0, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        
         self.list_file_processing.columnconfigure(0, weight=1)
         self.list_file_processing.rowconfigure(0, weight=1)
+        # self.separator = ttk.Separator(self, orient="horizontal")
+        # self.separator.grid(row=1, column=0, padx=5, pady=(0, 10), sticky="ew")
 
+        self.list_file_processed = ttk.LabelFrame(self, text="Processed")
+        self.list_file_processed.grid(row=1, column=0, padx=5, pady=(0, 10), sticky="nsew")
+
+        self.list_file_processed.columnconfigure(0, weight=1)
+        self.list_file_processed.rowconfigure(0, weight=1)
         # Treeview for files processing
-        self.tree_processing = ttk.Treeview(self.list_file_processing, columns=(1, 2), height=6, show="headings")
-        self.tree_processing.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
+        self.tree_processing = ttk.Treeview(self.list_file_processing, columns=(1, 2), show="headings", cursor="hand2")
+        self.tree_processing.grid(row=0, column=0, padx=5, pady=(10, 10),sticky="nsew")
 
         self.tree_processing.heading(1, text="File Name")
         self.tree_processing.heading(2, text="Status")
@@ -400,8 +621,8 @@ class ListFile(ttk.LabelFrame):
             "<Double-1>", lambda event: self.erase_treeview_data(self.tree_processing.selection()[0]))
 
         # Treeview for files processed
-        self.tree_processed = ttk.Treeview(self.list_file_processed, columns=(1, 2), height=6, show="headings")
-        self.tree_processed.grid(row=0, column=0, padx=5, pady=10, sticky="nsew")
+        self.tree_processed = ttk.Treeview(self.list_file_processed, columns=(1, 2), show="headings")
+        self.tree_processed.grid(row=0, column=0, padx=5, pady=(10, 10), sticky="nsew")
 
         self.tree_processed.heading(1, text="File Name")
         self.tree_processed.heading(2, text="Status")
@@ -410,9 +631,9 @@ class ListFile(ttk.LabelFrame):
         self.tree_processed.column(2, width=100)
 
     def erase_treeview_data(self, selected_item):
-        for item in FileProcessing:
+        for item in file_processing:
             if item == self.tree_processing.item(selected_item)["values"][0]:
-                FileProcessing.remove(item)
+                file_processing.remove(item)
                 break
         if selected_item:
             self.tree_processing.delete(selected_item)
@@ -420,7 +641,7 @@ class ListFile(ttk.LabelFrame):
 
     def update_treeview_processing(self, data):
 
-        FileProcessing.append(data)
+        file_processing.append(data)
 
         self.tree_processing.insert("", "end", values=((data[1], data[2] + "ing")))
 
@@ -433,30 +654,42 @@ class ListFile(ttk.LabelFrame):
             self.tree_processing.delete(item)
 
 
-        for file_data in FileProcessing:
+        for file_data in file_processing:
             self.tree_processed.insert("", "end", values=(file_data[1], file_data[2] + "ed"))
 
-        FileProcessing.clear()
+        file_processing.clear()
 
         self.tree_processed.yview_moveto(1)
 
 class App(ttk.Frame):
     def __init__(self, parent):
-        super().__init__(parent, padding=15)
+        super().__init__(parent, padding=10)
 
         for index in range(2):
             self.columnconfigure(index, weight=1)
             self.rowconfigure(index, weight=1)
 
+        self.user = ttk.Frame(self)
+        self.user.grid(row=0, column=0, rowspan=2, padx=10, pady=(10, 0), sticky="nsew")
 
-        input_person = InputPerson(self)
-        input_person.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="nsew")
-        radio_button = RadioButton(self)
-        radio_button.grid(row=1, column=0, padx=10, pady=(10, 0), sticky="nsew")
+        self.user.columnconfigure(0, weight=1)
+        self.user.rowconfigure(0, weight=1)
+
+        input_person = InputInfor(self.user)
+        input_person.grid(row=0, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        method = Method(self.user)
+        method.grid(row=2, column=0, padx=5, pady=(0, 10), sticky="nsew")
+        check_connection = CheckConnection(self.user)
+        check_connection.grid(row=1, column=0, padx=0, pady=(0, 10), sticky="nsew")
+        self.user.grid_rowconfigure(1, weight=2)
+        self.user.grid_rowconfigure(2, weight=1)
+        self.user.grid_rowconfigure(3, weight=3)
+
+        # self.user.grid_columnconfigure(0, weight=1)
+
         list_file = ListFile(self)
-        # rowspace is no longer needed
         list_file.grid(row=0, column=2, rowspan=2, padx=10, pady=(10, 0), sticky="nsew")
-        client_server_folder = ClientServerFolder(self, list_file, radio_button)
+        client_server_folder = ClientServerFolder(self, list_file, method)
         client_server_folder.grid(row=0, column=1, padx=10, pady=(10, 0), sticky="nsew")
         process_button = ProcessButton(self, list_file, input_person)
         process_button.grid(row=1, column=1, padx=10, pady=(0, 0), sticky="nsew")
@@ -467,7 +700,6 @@ class App(ttk.Frame):
 def main():
     root = tk.Tk()
     root.title("Client-Server Application")
-    root.resizable("false", "false")
     root.iconphoto(False, tk.PhotoImage(file=resource_path("assets/icon-8.png")))
 
     sv_ttk.set_theme("dark")
