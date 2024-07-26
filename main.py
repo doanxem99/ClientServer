@@ -1,5 +1,4 @@
 import tkinter as tk
-from tkinter import Label
 from tkinter import ttk
 from tkinter import filedialog
 from tkinter import messagebox
@@ -119,6 +118,12 @@ class MenuBar(tk.Menu):
                             file.write(response_zip.content)
                         with zipfile.ZipFile("./update.zip") as zip_ref:
                             zip_ref.extractall(".")
+                        os.remove("./update.zip")
+                        # Move the new version to the current directory
+                        os.system(f"rm -r ./assets")
+                        os.system(f"rm -r ./dist")
+                        os.system(f"mv ./doanxem99-ClientServer-*/* ./")
+                        os.system(f"rm -r ./doanxem99-ClientServer-*")
                         messagebox.showinfo("Update", "The application has been updated. Please restart the application.")
                 elif announcement == True:
                     messagebox.showinfo("Update", "You are using the latest version.")
