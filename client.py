@@ -1,54 +1,51 @@
 import socket
-import sys
+import time
+import os
 
-# Create a TCP/IP socket and connect to the server, then send a message to the server and 
-# receive the response of all the files and folders in the server's directory.
+HOST 		    = "localhost"
+PORT 		    = 54321
+BUFFER_SIZE 	= 1024
 
-def create_connection():
-    try:
-        # Create a TCP/IP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Connect the socket to the server
-        server_address = ('localhost', 54321)
-        print('connecting to %s port %s' % server_address)
-        sock.connect(server_address)
-    except Exception as e:
-        return str(e), None
-    return "", sock
-
-def call_list():
-    address :str = ''
-    data :list = []
-    error :str = ''
-    (error, sock) = create_connection()
-    if error:
-        return (error, address, data)
-    try:
-        # Send data
-        message = 'list'
-        print('sending "%s"' % message)
-        sock.sendall(message.encode())
-
-        # Look for the response
-        item = sock.recv(1024)
-        address = item.decode()
-        while True:
-            item = sock.recv(1024)
-            data.append(item.decode())
-            if not item:
-                break
-        return (error, address, data)
-    
-    except Exception as e:
-        print(e)
-        error = str(e)
-        return (error, address, data)
-
-    finally:
-        print('closing socket')
-        sock.close()
-
-
-# if __name__ == '__main__':
-#     client()
+if __name__ == "__main__":
+	clis = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	try:
+		clis.connect((HOST, PORT))
+		msg = clis.recv(BUFFER_SIZE)				# server busy ?
+		if msg != b"OK":
+			print(msg.decode())
+		else:
+			while True:
+				filename = clis.recv(BUFFER_SIZE)
+				# print(filename)
+				if not filename or filename == b".":
+					break
+				clis.sendall(b"OK")
+				print(filename.decode())
+			filename = input("Choose file: ")
+			clis.sendall(filename.encode())
+			msg = clis.recv(BUFFER_SIZE)
+			if msg != b"OK":				# allow download file ?
+				print(msg.decode())
+			else:
+				filesize = int(clis.recv(BUFFER_SIZE).decode())
+				path = input("Save file to: ")
+				transfer = 0
+				with open(path, "wb") as f:
+					start = time.time()
+					while True:
+						data = clis.recv(BUFFER_SIZE)
+						if not data:
+							break
+						f.write(data)
+						clis.sendall(b"OK")
+						
+						transfer += len(data)
+						# print(f"Received: {transfer}/{filesize}", end='\r')
+					end = time.time()
+					print(f"\nTime taken: {end-start:0.2f}s")
+	except ConnectionRefusedError:	
+		print("WARNING: server not responding")
+	except KeyboardInterrupt:
+		print("WARNING: keyboard interrupt")
+	finally:
+		clis.close()
