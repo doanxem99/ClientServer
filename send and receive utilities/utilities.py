@@ -45,8 +45,10 @@ def send_file_segment(sock, file_path, file_size, idx):
 
 def client_send_file(sock):
     file_path = input("[?] File to send (enter the path with file name): ")
+    file_path = file_path.strip()
     while not os.path.exists(file_path) or os.path.isdir(file_path):
-        file_path = input("[!] Invalid path (there may be some spaces at the start of file name that should be deleted)\n[?] Please enter the path again: ")
+        file_path = input("[!] Invalid path\n[?] Please enter the path again: ")
+        file_path = file_path.strip()
 
     file_name = os.path.basename(file_path)
     send_data(sock, len(file_name).to_bytes(SHORT_NUM_LEN, "big"))
