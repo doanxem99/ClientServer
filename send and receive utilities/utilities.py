@@ -13,7 +13,7 @@ CLIENT_PORT = 34567
 CHUNK_SIZE = 4096  # Should be a small of 2 (1024 or 4096)
 SHORT_NUM_LEN = 1  # Ex: segment index, length of file name
 LONG_NUM_LEN = 4  # Ex: file size at server
-MAX_THREADS = 10  # Maximum number of threads that run at the same time in send_file_multithread()
+MAX_THREADS = 10
 
 
 # FUNCTION FOR SENDING
