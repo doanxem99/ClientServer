@@ -574,6 +574,8 @@ class ProcessFrame(ttk.Frame):
         self.columnconfigure(1, weight=1)
         self.columnconfigure(2, weight=1)
         self.rowconfigure(0, weight=1)
+        self.rowconfigure(1, weight=1)
+        self.rowconfigure(2, weight=20)
 
         self.add_widgets()
 
@@ -581,7 +583,7 @@ class ProcessFrame(ttk.Frame):
         
         # Download progress bar
         self.progress = ttk.Progressbar(self, length = 300, mode = "determinate", value = 0, maximum = 100)
-        self.progress.grid(row=0, column=0, columnspan=3, padx=10, pady=10, sticky="ew")
+        self.progress.grid(row=0, column=0, columnspan=3, padx=10, pady=10, sticky="new")
 
         # Percentage
         # Clear the progress label when the progress bar is full
@@ -593,16 +595,16 @@ class ProcessFrame(ttk.Frame):
         self.image_folder = self.image_folder.resize((30, 20))
         self.image_folder = ImageTk.PhotoImage(self.image_folder)
         self.folder_button = ttk.Button(self, image=self.image_folder, style="Accent.TButton", command=self.open_folder)
-        self.folder_button.grid(row=1, column=1, padx=(0, 0), pady=10, sticky="e")
+        self.folder_button.grid(row=1, column=1, padx=5, pady=5, sticky="new")
 
         self.button = ttk.Button(self, text="RUN", style="Accent.TButton", command=self.start_downloads, width=15)
-        self.button.grid(row=1, column=0, padx=(10, 0) , pady=(5, 5), sticky="we")
+        self.button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="nwe")
 
         self.file_image = Image.open(resource_path("assets/file3.png"))
         self.file_image = self.file_image.resize((30, 20))
         self.file_image = ImageTk.PhotoImage(self.file_image)
         self.file_button = ttk.Button(self, image=self.file_image, style="Accent.TButton", command=self.open_file)
-        self.file_button.grid(row=1, column=2, padx=(0, 10), pady=10, sticky="e")
+        self.file_button.grid(row=1, column=2, padx=(5, 10), pady=5, sticky="new")
 
         # List of Error and Warning messages using scrolltext like ttk
         self.text = tk.Text(self, wrap="word", height=8, width=25, font=("Arial", WORD_SIZE))
