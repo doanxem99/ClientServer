@@ -1,7 +1,7 @@
 # ClientServer
 PHẦN MỀM DOWNLOAD / UPLOAD FILE DÙNG KỸ THUẬT ĐA LUỒNG, KẾT NỐI BẰNG TCP
 
-![alt text](https://github.com/doanxem99/ClientServer/blob/main/assets/image2.jpg?raw=true)
+![alt text](https://github.com/doanxem99/ClientServer/blob/main/assets/image3.png?raw=true)
 
 # User
 ---
@@ -14,7 +14,7 @@ PHẦN MỀM DOWNLOAD / UPLOAD FILE DÙNG KỸ THUẬT ĐA LUỒNG, KẾT NỐI 
 ```
 git clone https://github.com/doanxem99/ClientServer.git
 ```
-2. Go to folder dist and click main.exe
+2. Find and Click main.exe
 3. Enjoy :>
 
 ### 2. Server
