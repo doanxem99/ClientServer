@@ -1,54 +1,80 @@
 import socket
-import sys
+import os
+from utilities import SERVER_IP, SERVER_PORT, CHUNK_SIZE, client_send_file, client_receive_file
 
-# Create a TCP/IP socket and connect to the server, then send a message to the server and 
-# receive the response of all the files and folders in the server's directory.
 
-def create_connection():
+
+
+# request_list: list = [["", "big.pdf", "Download"]]
+# request_list: list = [["", "big.pdf", "Download"]]
+# request_list's format is [[file_path, file_name, "Upload"/"Download"], [file_path, file_name, "Upload"/"Download"], ...]
+
+def process_request_list(client, request, address_saved_files):
+    action = request[2]
+    if action == "Upload":
+        client.send("u".encode())                
+        client_send_file(client, request[0])
+
+    elif action == "Download":
+        client.send("d".encode())
+        client_receive_file(client, request[1], address_saved_files)
+    
+    client.send("e".encode())
+    client.close()
+    return "Done"
+
+
+def do_request(request, address_saved_files):
+    if not os.path.isdir(address_saved_files):
+        os.makedirs(address_saved_files)
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        # Create a TCP/IP socket
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-        # Connect the socket to the server
-        server_address = ('localhost', 54321)
-        print('connecting to %s port %s' % server_address)
-        sock.connect(server_address)
+        client.connect((SERVER_IP, SERVER_PORT))
+        server_msg = client.recv(CHUNK_SIZE).decode()
+        if server_msg != "OK":
+            return server_msg
+        else:
+            return process_request_list(client, request, address_saved_files)
     except Exception as e:
-        return str(e), None
-    return "", sock
+        return str(e)
+    finally:
+        client.close()
+
+def server_settings(option, value):
+    global SERVER_IP
+    if option == "IP":
+        client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            client.connect((value, SERVER_PORT))
+        except Exception as e:
+            return str(e)
+        SERVER_IP = value
+    elif option == "MAX_THREADS":
+        global MAX_THREADS
+        MAX_THREADS = int(value)
+        return str(MAX_THREADS)
 
 def call_list():
-    address :str = ''
-    data :list = []
-    error :str = ''
-    (error, sock) = create_connection()
-    if error:
-        return (error, address, data)
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    data: list = []
+    error: str = ""
     try:
-        # Send data
-        message = 'list'
-        print('sending "%s"' % message)
-        sock.sendall(message.encode())
-
-        # Look for the response
-        item = sock.recv(1024)
-        address = item.decode()
-        while True:
-            item = sock.recv(1024)
-            data.append(item.decode())
-            if not item:
-                break
-        return (error, address, data)
-    
+        client.connect((SERVER_IP, SERVER_PORT))
+        server_msg = client.recv(CHUNK_SIZE).decode()
+        if server_msg != "OK":
+            print(server_msg)
+        else:
+            client.send('l'.encode())
+            while True:
+                item = client.recv(CHUNK_SIZE).decode()
+                if item == "e":
+                    break
+                data.append(item)
+            client.send('e'.encode())
+        return (error, data)
+            
     except Exception as e:
-        print(e)
         error = str(e)
-        return (error, address, data)
-
+        return (error, data)
     finally:
-        print('closing socket')
-        sock.close()
-
-
-# if __name__ == '__main__':
-#     client()
+        client.close()

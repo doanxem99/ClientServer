@@ -5,6 +5,7 @@ import tkinter as tk
 from tkinter import ttk, font 
 from tkinter import filedialog
 from tkinter import messagebox
+from tkinterdnd2 import DND_FILES, TkinterDnD
 from PIL import Image, ImageTk
 import sv_ttk
 import os
@@ -12,7 +13,8 @@ import time
 import random
 import sys
 import webbrowser
-from client import call_list
+from client import *
+
 import speedtest
 from multiprocessing.pool import ThreadPool
 import threading
@@ -22,11 +24,10 @@ import zipfile
 
 file_processing: list = []
 information: list = []
-current_account: str = ""
-address_server: str = ""
 address_client: str = os.getcwd()
-address_saved_file: str = os.getcwd() + "/saved_file"
+address_saved_file: str = os.getcwd() + "./Downloaded Files"
 error: str = ""
+
 
 HEADING_SIZE = 14
 HEADING_2_SIZE = 11
@@ -39,18 +40,6 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
 
     return os.path.join(base_path, relative_path)
-
-def list_folder(tree, parent, path):
-    try:
-        for p in os.listdir(path):
-            abspath = os.path.join(path, p)
-            isdir = os.path.isdir(abspath)
-            oid = tree.insert(parent, 'end', text=p, open=False)
-            if isdir:
-                list_folder(tree, oid, abspath)
-    except PermissionError:
-        # Skip directories that raise a permission error
-        pass
 
 class MenuBar(tk.Menu):
     def __init__(self, parent):
@@ -102,7 +91,7 @@ class MenuBar(tk.Menu):
         if address_saved_file == "":
             return
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: Address saved file has been changed to {address_saved_file}\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
 
     def about(self):
@@ -118,7 +107,6 @@ class MenuBar(tk.Menu):
         name_file = os.path.basename(file_path)
         data = (file_path, name_file, "Upload")
         self.list_file_processing.update_treeview_processing(data)
-        file_processing.append(data)
 
     def open_folder(self):
         folder_path = filedialog.askdirectory()
@@ -128,17 +116,19 @@ class MenuBar(tk.Menu):
         for item in self.client_server_folder.tree_Client.get_children():
             self.client_server_folder.tree_Client.delete(item)
         # Add new item
-        list_folder(self.client_server_folder.tree_Client, '', folder_path)
+        self.client_server_folder.list_folder(self.client_server_folder.tree_Client, '', folder_path)
 
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: Folder {folder_path} has been opened\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
 
     def reset_server(self):
-        call_list()
+        self.client_server_folder.tree_Server.delete(*self.client_server_folder.tree_Server.get_children())
+        self.client_server_folder.list_files()
+
 
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Server has been reset\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
 
     def update_app(self, current_version, announcement):
@@ -176,28 +166,28 @@ class MenuBar(tk.Menu):
         file_processing.clear()
 
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: All files have been cleared\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
     def clear_history(self):
         self.list_file_processed.erase_all_data()
 
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: All history has been cleared\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
 
 class InputInfor(ttk.LabelFrame):
     def __init__(self, parent):
         super().__init__(parent, padding=15)
 
-        custom_label = ttk.Label(self, text="Information", font=("Arial", HEADING_SIZE, "bold"))
+        custom_label = ttk.Label(self, text="Server Settings", font=("Arial", HEADING_SIZE, "bold"))
         self['labelwidget'] = custom_label
 
-        self.columnconfigure(0, weight=1)
+        self.columnconfigure(0, weight=2)
+        self.columnconfigure(1, weight=1)
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=1)
         self.rowconfigure(3, weight=1)
-        self.rowconfigure(4, weight=1)
 
         self.add_widgets()
         self.bind_widgets()
@@ -206,103 +196,86 @@ class InputInfor(ttk.LabelFrame):
         self.process_frame = process_frame
 
     def add_widgets(self):
-        self.label_account = ttk.Label(self, text="Account:", font=("Arial", HEADING_2_SIZE))
-        self.label_account.grid(row=0, column=0, padx=0, pady=0, sticky="w")
-        self.account = ttk.Entry(self, width=16)
-        self.account.grid(row=1, column=0, padx=0, pady=5, sticky="ew")
+        self.label_ip_address = ttk.Label(self, text="IP Address: ", font=("Arial", HEADING_2_SIZE))
+        self.label_ip_address.grid(row=0, column=0, padx=0, pady=0, sticky="w")
+        self.ip_address = ttk.Entry(self, width=5)
+        self.ip_address.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
 
-        self.label_password = ttk.Label(self, text="Password:", font=("Arial", HEADING_2_SIZE))
-        self.label_password.grid(row=2, column=0, padx=0, pady=(5, 0), sticky="w")
-        self.password = ttk.Entry(self, width=16)
-        self.password.grid(row=3, column=0, padx=0, pady=5, sticky="ew")
+        self.image_process_button = Image.open(resource_path("assets/process_button.png"))
+        self.image_process_button = self.image_process_button.resize((30, 20))
+        self.image_process_button = ImageTk.PhotoImage(self.image_process_button)
+        self.process_button = ttk.Button(self, image=self.image_process_button, style="Accent.TButton", command=lambda: self.process())
+        self.process_button.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.submit = ttk.Frame(self)
-        self.submit.grid(row=4, column=0, padx=0, pady=5, sticky="ew")
+        self.label_number_thread = ttk.Label(self, text="Number of Threads: ", font=("Arial", HEADING_2_SIZE))
+        self.label_number_thread.grid(row=2, column=0, padx=0, pady=0, sticky="w")
 
-        self.submit.columnconfigure(0, weight=1)
-        self.submit.columnconfigure(1, weight=1)
-        
-        self.login_button = ttk.Button(self.submit, text="Log in", style="Accent.TButton")
-        self.login_button.grid(row=0, column=0, padx=2, pady=5, sticky="ew")
-        self.login_button.bind("<Button-1>", self.login)
-
-        self.signup_button = ttk.Button(self.submit, text="Sign up", style="Accent.TButton")
-        self.signup_button.grid(row=0, column=1, padx=2, pady=5, sticky="ew")
-        self.signup_button.bind("<Button-1>", self.signup)
+        self.number_thread = ttk.Scale(self, from_=1, to=20, orient="horizontal", length=50)
+        self.number_thread.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        # Display the current value of the scale
+        self.number_thread.set(5)
+        self.display_number_thread = ttk.Combobox(self, values=[i for i in range(1, 21)], width=2)
+        self.display_number_thread.grid(row=3, column=1, padx=5, pady=0, sticky="ew")
+        self.display_number_thread.set(5)
 
     def bind_widgets(self):
-        self.account.bind("<FocusOut>", self.validate_account)
-        self.account.bind("<FocusIn>", self.validate_account)
-        self.account.bind("<KeyRelease>", self.validate_account)
+        self.ip_address.bind("<FocusOut>", self.validate_ip_address)
+        self.ip_address.bind("<FocusIn>", self.validate_ip_address)
+        self.ip_address.bind("<KeyRelease>", self.validate_ip_address)
 
-        self.password.bind("<FocusOut>", self.validate_password)
-        self.password.bind("<FocusIn>", self.validate_password)
-        self.password.bind("<KeyRelease>", self.validate_password)
-    def login(self, event=None):
-        global current_account
-        if self.validate_account() == False or self.validate_password() == False or self.account.get() == "" or self.password.get() == "":
-            self.login_button.state(["disabled"])
+        self.number_thread.bind("<ButtonRelease-1>", self.update_combobox_number_thread)
+        self.number_thread.bind("<Enter>", lambda event: self.number_thread.config(cursor="hand2"))
+        self.number_thread.bind("<Leave>", lambda event: self.number_thread.config(cursor="arrow"))
+
+        self.display_number_thread.bind("<<ComboboxSelected>>", self.update_scale_number_thread)
+        self.display_number_thread.bind("<Enter>", lambda event: self.display_number_thread.config(cursor="hand2"))
+        self.display_number_thread.bind("<Leave>", lambda event: self.display_number_thread.config(cursor="arrow"))
+
+        self.process_button.bind("<Enter>", lambda event: self.process_button.config(cursor="hand2"))
+        self.process_button.bind("<Leave>", lambda event: self.process_button.config(cursor="arrow"))
+
+    def process(self, event=None):
+        if self.validate_ip_address() == False:
+            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: Invalid IP Address\n", "error")
+            self.process_frame.text.insert("end", "Please enter a valid IP Address\n", "error")
+            self.process_frame.text.insert("end", "----------------------------------\n", "info")
+            self.process_frame.text.yview_moveto(1)
             return
-        self.login_button.state(["!disabled"])
-
-
-        for info in information:
-            if info[0] == self.account.get() and info[1] == self.password.get():
-                self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Account has been logged in\n", "success")
-                self.process_frame.text.insert("end", f"Hello \"{self.account.get()}\"\n", "success")
-                self.process_frame.text.insert("end", "Welcome back!!\n", "success")
-                self.process_frame.text.insert("end", "----------------------------------\n", "success")
-                self.process_frame.text.yview_moveto(1)
-                current_account = self.account.get()
-                return
-            
-        self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: Account or password is incorrect\n", "error")
-        self.process_frame.text.insert("end", "Please check your account or password\n", "error")
-        self.process_frame.text.insert("end", "----------------------------------\n", "error")
-        # Put the scrollbar at the bottom
-        self.process_frame.text.yview_moveto(1)
-    def signup(self, event=None):
-        global current_account
-        if self.validate_account() == False or self.validate_password() == False or self.account.get() == "" or self.password.get() == "":
-            self.signup_button.state(["disabled"])
+        if server_settings("IP", self.ip_address.get()) != "":
+            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: Cannot connect to the server\n", "error")
+            self.process_frame.text.insert("end", "Please check your IP Address\n", "error")
+            self.process_frame.text.insert("end", "----------------------------------\n", "info")
+            self.process_frame.text.yview_moveto(1)
             return
-        self.signup_button.state(["!disabled"])
-        
-
-        for info in information:
-            if info[0] == self.account.get():
-                self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: Account already exists\n", "error")
-                self.process_frame.text.insert("end", "Please choose another name\n", "error")
-                self.process_frame.text.insert("end", "----------------------------------\n", "error")
-                self.process_frame.text.yview_moveto(1)
-                return
-        information.append((self.account.get(), self.password.get()))
-        self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Account has been created\n", "success")
-        self.process_frame.text.insert("end", f"Hello {self.account.get()}\n", "success")
-        self.process_frame.text.insert("end", "Welcome to the application!!\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
-        
-        current_account = self.account.get()
-        export_account()
-
+        global SERVER_IP
+        SERVER_IP = self.ip_address.get()
+        self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: IP Address has been changed to {SERVER_IP}\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
-        
-        return
-    def validate_account(self, event=None):
-        for character in self.account.get():
-            if character == " " or character.isidentifier() == False:
-                self.account.state(["invalid"])
-                return False
-        self.account.state(["!invalid"])
-        return True
 
-    def validate_password(self, event=None):
-        for character in self.password.get():
-            if character == " ":
-                self.password.state(["invalid"])
-                return False
-        self.password.state(["!invalid"])
-        return True
+    def update_combobox_number_thread(self, event=None):
+        number_thread = int(self.number_thread.get())
+        self.display_number_thread.set(number_thread)
+
+    def update_scale_number_thread(self, event=None):
+        number_thread = int(self.display_number_thread.get())
+        self.number_thread.set(number_thread)
+
+
+
+    def validate_ip_address(self, event=None):
+        ip_address = self.ip_address.get()
+        if ip_address == "":
+            self.ip_address["foreground"] = "black"
+            return True
+        try:
+            socket.inet_aton(ip_address)
+            self.ip_address["foreground"] = "white"
+            return True
+        except socket.error:
+            self.ip_address["foreground"] = "red"
+            return False
+
         
 
 
@@ -310,6 +283,7 @@ class CheckConnection(ttk.LabelFrame):
     def __init__(self, parent):
         super().__init__(parent, padding=5)
         self.add_widgets()
+        self.bind_widgets()
 
     def add_widgets(self):
         custom_label = ttk.Label(self, text="Check Connection", font=("Arial", HEADING_SIZE, "bold"))
@@ -345,6 +319,10 @@ class CheckConnection(ttk.LabelFrame):
 
         self.button = ttk.Button(self, text="Test", style="Accent.TButton", command=self.start_speed_test)
         self.button.grid(row=6, column=0, columnspan=2, padx=2, pady=(2, 5), sticky="we")
+
+    def bind_widgets(self):
+        self.button.bind("<Enter>", lambda event: self.button.config(cursor="hand2"))
+        self.button.bind("<Leave>", lambda event: self.button.config(cursor="arrow"))
 
     def start_speed_test(self):
         self.progress_download["value"] = 0
@@ -475,18 +453,7 @@ class ClientServerFolder(ttk.LabelFrame):
         self.scrollbar_v.config(command=self.tree_Server.yview)
         self.scrollbar_h.config(command=self.tree_Server.xview)
         self.tree_Server.pack(expand=True, fill="both")
-        (error, Address_Server, data) = call_list()
-        # print(data[0])
-        if error != "":
-            messagebox.showerror("Error", "An error occurred while connecting to the server \n --------------- \n " + error)
-            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: An error occurred while connecting to the server\n", "error")
-            self.process_frame.text.insert("end", "Please check your internet connection\n", "error")
-            self.process_frame.text.insert("end", "----------------------------------\n", "error")
-            self.process_frame.text.yview_moveto(1)
-        else: 
-            self.convert_data_server(data)
-            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Server folder has been opened\n", "success")
-            self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.list_files()
 
 
         # Client
@@ -509,10 +476,10 @@ class ClientServerFolder(ttk.LabelFrame):
         self.scrollbar_v.config(command=self.tree_Client.yview)
         self.scrollbar_h.config(command=self.tree_Client.xview)
         self.tree_Client.pack(expand=True, fill="both")
-        list_folder(self.tree_Client, '', '.')
+        self.list_folder(self.tree_Client, '', '.')
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Client folder has been opened\n", "success")
         self.process_frame.text.insert("end", "Current directory: " + os.getcwd() + "\n", "success")
-        self.process_frame.text.insert("end", "----------------------------------\n", "success")
+        self.process_frame.text.insert("end", "----------------------------------\n", "info")
 
 
         # Bind double-click event
@@ -548,6 +515,19 @@ class ClientServerFolder(ttk.LabelFrame):
             parent = self.tree.parent(parent)
         return os.path.join(*path)
     
+    def list_files(self):
+        (error, data) = call_list()
+        if error != "":
+            messagebox.showerror("Error", "An error occurred while connecting to the server \n --------------- \n " + error)
+            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: An error occurred while connecting to the server\n", "error")
+            self.process_frame.text.insert("end", "Please check your internet connection\n", "error")
+            self.process_frame.text.insert("end", "----------------------------------\n", "info")
+            self.process_frame.text.yview_moveto(1)
+        else: 
+            self.convert_data_server(data)
+            self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Server folder has been opened\n", "success")
+            self.process_frame.text.insert("end", "----------------------------------\n", "info")
+
     def convert_data_server(self, data):
         parent: list = [''] 
         prev_level = 0
@@ -563,6 +543,18 @@ class ClientServerFolder(ttk.LabelFrame):
                 parent.append(pa)
             else:
                 parent[level] = pa
+
+    def list_folder(self, tree, parent, path):
+        try:
+            for p in os.listdir(path):
+                abspath = os.path.join(path, p)
+                isdir = os.path.isdir(abspath)
+                oid = tree.insert(parent, 'end', text=p, open=False)
+                if isdir:
+                    self.list_folder(tree, oid, abspath)
+        except PermissionError:
+            # Skip directories that raise a permission error
+            pass
             
 
 
@@ -570,20 +562,23 @@ class ProcessFrame(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent, padding=15)
 
-        self.columnconfigure(0, weight=20)
+        self.columnconfigure(0, weight=1)
         self.columnconfigure(1, weight=1)
-        self.columnconfigure(2, weight=1)
+        self.columnconfigure(2, weight=20)
+        self.columnconfigure(3, weight=1)
+        self.columnconfigure(4, weight=1)
         self.rowconfigure(0, weight=1)
         self.rowconfigure(1, weight=1)
         self.rowconfigure(2, weight=20)
 
         self.add_widgets()
+        self.bind_widgets()
 
     def add_widgets(self):
         
         # Download progress bar
         self.progress = ttk.Progressbar(self, length = 300, mode = "determinate", value = 0, maximum = 100)
-        self.progress.grid(row=0, column=0, columnspan=3, padx=10, pady=10, sticky="new")
+        self.progress.grid(row=0, column=0, columnspan=5, padx=10, pady=10, sticky="new")
 
         # Percentage
         # Clear the progress label when the progress bar is full
@@ -591,31 +586,73 @@ class ProcessFrame(ttk.Frame):
         self.progress_label.place(in_=self.progress, relx=0.5, rely=0.5, anchor="center")
 
         # Button
+        self.image_reset = Image.open(resource_path("assets/reset_button_2.png"))
+        self.image_reset = self.image_reset.resize((30, 20))
+        self.image_reset = ImageTk.PhotoImage(self.image_reset)
+        self.reset_button = ttk.Button(self, image=self.image_reset, style="Accent.TButton", command=self.reset_server)
+        self.reset_button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="new")
+
+        self.button = ttk.Button(self, text="RUN", style="Accent.TButton", command=self.start_downloads, width=15)
+        self.button.grid(row=1, column=1, columnspan=2, padx=(5, 5), pady=5, sticky="nwe")
+
         self.image_folder = Image.open(resource_path("assets/folder.png"))
         self.image_folder = self.image_folder.resize((30, 20))
         self.image_folder = ImageTk.PhotoImage(self.image_folder)
         self.folder_button = ttk.Button(self, image=self.image_folder, style="Accent.TButton", command=self.open_folder)
-        self.folder_button.grid(row=1, column=1, padx=5, pady=5, sticky="new")
-
-        self.button = ttk.Button(self, text="RUN", style="Accent.TButton", command=self.start_downloads, width=15)
-        self.button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="nwe")
+        self.folder_button.grid(row=1, column=3, padx=5, pady=5, sticky="new")
 
         self.file_image = Image.open(resource_path("assets/file3.png"))
         self.file_image = self.file_image.resize((30, 20))
         self.file_image = ImageTk.PhotoImage(self.file_image)
         self.file_button = ttk.Button(self, image=self.file_image, style="Accent.TButton", command=self.open_file)
-        self.file_button.grid(row=1, column=2, padx=(5, 10), pady=5, sticky="new")
+        self.file_button.grid(row=1, column=4, padx=(5, 10), pady=5, sticky="new")
 
         # List of Error and Warning messages using scrolltext like ttk
         self.text = tk.Text(self, wrap="word", height=8, width=25, font=("Arial", WORD_SIZE))
         vsb = ttk.Scrollbar(self, orient="vertical", command=self.text.yview)
         self.text.configure(yscrollcommand=vsb.set)
-        self.text.grid(row=2, column=0, columnspan=3, padx=10, pady=10, sticky="nsew")
+        self.text.grid(row=2, column=0, columnspan=5, padx=10, pady=10, sticky="nsew")
 
 
         self.text.tag_configure("error", foreground="red")
         self.text.tag_configure("warning", foreground="orange")
         self.text.tag_configure("success", foreground="green")
+        self.text.tag_configure("info", foreground="white")
+
+    def bind_widgets(self):
+        self.reset_button.bind("<Enter>", lambda event: self.show_tip("reset"))
+        self.reset_button.bind("<Leave>", lambda event: self.hide_tip("reset"))
+
+        self.button.bind("<Enter>", lambda event: self.show_tip("run"))
+        self.button.bind("<Leave>", lambda event: self.hide_tip("run"))
+
+        self.folder_button.bind("<Enter>", lambda event: self.show_tip("folder"))
+        self.folder_button.bind("<Leave>", lambda event: self.hide_tip("folder"))
+
+        self.file_button.bind("<Enter>", lambda event: self.show_tip("file"))
+        self.file_button.bind("<Leave>", lambda event: self.hide_tip("file"))
+
+    def show_tip(self, option, event=None):
+        if option == "reset":
+            self.tip = tk.Label(self, text="Reset Server", bg="black", fg="white")
+            self.tip.place(in_=self.reset_button, relx=0.5, rely=1.5, anchor="center")
+        elif option == "run":
+            self.tip = tk.Label(self, text="Start Download", bg="black", fg="white")
+            self.tip.place(in_=self.button, relx=0.5, rely=1.5, anchor="center")
+        elif option == "folder":
+            self.tip = tk.Label(self, text="Open Folder", bg="black", fg="white")
+            self.tip.place(in_=self.folder_button, relx=0.5, rely=1.5, anchor="center")
+        elif option == "file":
+            self.tip = tk.Label(self, text="Open File", bg="black", fg="white")
+            self.tip.place(in_=self.file_button, relx=0.5, rely=1.5, anchor="center")
+
+
+    def hide_tip(self, option, event=None):
+        self.tip.place_forget()
+        
+
+    def reset_server(self):
+        self.menu_bar.reset_server()
 
     def open_folder(self):
         self.menu_bar.open_folder()
@@ -634,7 +671,7 @@ class ProcessFrame(ttk.Frame):
         if len(file_processing) == 0:
             self.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: No files to process\n", "error")
             self.text.insert("end", "Please select files to process\n", "error")
-            self.text.insert("end", "----------------------------------\n", "error")   
+            self.text.insert("end", "----------------------------------\n", "info")   
 
             self.text.yview_moveto(1)
             return True
@@ -646,7 +683,6 @@ class ProcessFrame(ttk.Frame):
     # Simulate download
     def start_downloads(self):
 
-        # self.delete_tree()
 
         if self.error_message() == True:
             self.button.configure(style="Toolbutton.TButton")
@@ -654,58 +690,65 @@ class ProcessFrame(ttk.Frame):
         else:
             self.button.configure(style="Accent.TButton")
 
-        # If the account field is empty, display an warning message
-        if current_account == "":
-            self.text.insert("end", time.strftime("%H:%M:%S") + " WARNING: User is not defined, Anonymous will be used\n", "warning")
-            self.text.insert("end", "Default user can only download files and upload files to public space\n", "warning")
-            self.text.insert("end", "Please log in or sign up to use the full features\n", "warning")
-            self.text.insert("end", "----------------------------------\n", "warning")
-
             self.text.yview_moveto(1)
+
+        self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Start processing files\n", "success")
+        self.text.insert("end", "Number of threads: " + server_settings("MAX_THREADS", self.input_person.number_thread.get()) + "\n", "success")
+        self.text.insert("end", "----------------------------------\n", "info")
+
         # Stimulation download progress bar
         self.progress["value"] = 0
-        while self.progress["value"] < 100:
-            time.sleep(0.1)
-            rand = random.randint(1, 10)
-            if (self.progress["value"] + rand) > 100:
-                self.progress["value"] = 100
-            else:
-                self.progress["value"] += rand
-            self.progress_label["text"] = f"{int(self.progress['value'])}%"
-            self.update_idletasks()
+        global address_saved_file
         
-        name_file_download: list = []
-        name_file_upload: list = [] 
+        downloaded = 0
+        uploaded = 0
+        error_files = 0
+        
+        # Upload and download files
+        size = len(file_processing)
         for item in file_processing:
             if item[2] == "Download":
-                name_file_download.append((item[0], item[1]))
+                downloaded += 1
             else:
-                name_file_upload.append((item[0], item[1]))
-            self.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: File {item[1]} is {item[2]}ed\n", "success")
-            self.text.insert("end", "----------------------------------\n", "success")
-            self.text.yview_moveto(1)
-        # if len(name_file_download) != 0:
-            # error_download = call_download(name_file_download)
-            # if error_download != "":
-            #     messagebox.showerror("Error", "An error occurred while downloading files \n --------------- \n " + error_download)
-        # if len(name_file_upload) != 0:
-            # error_upload = call_upload(name_file_upload)
-            # if error_upload != "":
-            #     messagebox.showerror("Error", "An error occurred while uploading files \n --------------- \n " + error_upload)
+                uploaded += 1
+            status = do_request(item, address_saved_file)
+            if status == "Done":
+                self.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: File {item[1]} is {item[2]}ed\n", "success")
+                self.text.insert("end", "----------------------------------\n", "info")
+                self.text.yview_moveto(1)
+                self.list_file_processed.update_treeview_processed(item)
+            else:
+                self.text.insert("end", time.strftime("%H:%M:%S") + f" ERROR: File {item[1]} cannot be {item[2]}ed\n", "error")
+                self.text.insert("end", status + "\n", "error")
+                self.text.insert("end", "----------------------------------\n", "info")
+                self.text.yview_moveto(1)
+                if item[2] == "Download":
+                    downloaded -= 1
+                else:
+                    uploaded -= 1
+                error_files += 1
+            self.progress["value"] += (file_processing.index(item) + 1) * 100 / size
+            self.progress_label["text"] = f"{int(self.progress['value'])}%"
+            self.update_idletasks()
+        self.progress["value"] = 100
+        self.progress_label["text"] = "100%"
+        self.update_idletasks()
 
-        # If the download is successful, display a success message with name, method, and number of files processed
-        downloaded = len(name_file_download)
-        uploaded = len(name_file_upload)
 
-        self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: All files have been processed.\n", "success")
+            
+        # Display the result
+        if error_files == 0:
+            self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: All files have been processed.\n", "success")
+        else:
+            self.text.insert("end", time.strftime("%H:%M:%S") + f" ERROR: {error_files} files cannot be processed.\n", "error")
         self.text.insert("end", f"{downloaded} files have been downloaded.\n", "success")
         self.text.insert("end", f"{uploaded} files have been uploaded\n", "success")
-        self.text.insert("end", f"Account \"{current_account == '' and 'Anonymous' or current_account}\" has been used\n", "success")
-        self.text.insert("end", "----------------------------------\n", "success")
+        self.text.insert("end", f"All downloaded files are saved at {address_saved_file}\n", "success")
+        self.text.insert("end", "----------------------------------\n", "info")
 
         self.text.yview_moveto(1)
 
-        self.list_file_processed.update_treeview_processed()
+        file_processing.clear()
         self.list_file_processing.erase_all_data()
 
 
@@ -736,9 +779,18 @@ class FilesProcessing(ttk.LabelFrame):
         self.tree_processing.column(1, width=200)
         self.tree_processing.column(2, width=100)
 
+        self.tree_processing.drop_target_register(DND_FILES)
+        self.tree_processing.dnd_bind("<<Drop>>", self.drop)
+
         # Erase data when user double-clicks on the file
         self.tree_processing.bind(
             "<Double-1>", lambda event: self.erase_treeview_data(self.tree_processing.selection()[0]))
+
+    def drop(self, event):
+        file_path = event.data
+        name_file = os.path.basename(file_path)
+        data = (file_path, name_file, "Upload")
+        self.update_treeview_processing(data)
 
     def erase_treeview_data(self, selected_item):
         for item in file_processing:
@@ -786,12 +838,10 @@ class FilesProcessed(ttk.LabelFrame):
         self.tree_processed.column(1, width=65)
         self.tree_processed.column(2, width=150)
         self.tree_processed.column(3, width=85)
-    def update_treeview_processed(self):
+    def update_treeview_processed(self, file_data):
         current_time = time.strftime("%H:%M:%S")
-        for file_data in file_processing:
-            self.tree_processed.insert("", "end", values=(current_time ,file_data[1], file_data[2] + "ed"))
 
-        file_processing.clear()
+        self.tree_processed.insert("", "end", values=(current_time ,file_data[1], file_data[2] + "ed"))
 
         self.tree_processed.yview_moveto(1)
     
@@ -820,8 +870,8 @@ class App(ttk.Frame):
         self.lower_frame.grid(row=1, column=0, padx=5, pady=5, sticky="nsew")
         self.lower_frame.rowconfigure(0, weight=1)
         self.lower_frame.columnconfigure(0, weight=1)
-        self.lower_frame.columnconfigure(1, weight=3)
-        self.lower_frame.columnconfigure(2, weight=1)
+        self.lower_frame.columnconfigure(1, weight=20)
+        self.lower_frame.columnconfigure(2, weight=5)
 
         check_connection = CheckConnection(self.lower_frame)
         input_person = InputInfor(self.lower_frame)
@@ -866,7 +916,7 @@ def main():
     # Import account information from the file
     import_account()
 
-    root = tk.Tk()
+    root = TkinterDnD.Tk()
     root.title("Client-Server Application")
     root.iconphoto(False, tk.PhotoImage(file=resource_path("assets/icon-8.png")))
 

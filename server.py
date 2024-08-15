@@ -1,57 +1,64 @@
 import socket
-import sys
+import threading
 import os
-import time
+from utilities import SERVER_IP, SERVER_PORT, server_send_file, server_receive_file, server_send_name_files
 
-# Create a TCP/IP socket and bind it to the server, then listen for incoming connections.
-# When a client connects, the server will receive a message from the client and send the
-# response of all the files and folders in the server's directory.
-
-def files_folders(folder, level, connection):
-    for file in os.listdir(folder):
-        data = str(level) + ' ' + file
-        connection.sendall(data.encode())
-        if os.path.isdir(os.path.join(folder, file)):
-            files_folders(os.path.join(folder, file), level + 1, connection)
+MAX_USER = 2
+PATH = "Public Space"
 
 
-def server():
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # Bind the socket to the server
-    server_address = ('localhost', 54321)
-    print('starting up on %s port %s' % server_address)
-    sock.bind(server_address)
-
-    # Listen for incoming connections   
-    sock.listen(1)
-    cnt = 0
+def handle(client):
+    addr = client.getpeername()
     while True:
-        # Wait for a connection
-        print('waiting for a connection')
-        connection, client_address = sock.accept()
-        
-        try:
-            print('connection from', client_address)
+        client_choice = client.recv(1).decode()
+        if client_choice == "u":
+            server_receive_file(client, PATH)
+        elif client_choice == "d":
+            server_send_file(client, PATH)
+        elif client_choice == "l":
+            server_send_name_files(client, PATH)
+        elif client_choice == "e":
+            client.close()
+            break
+    print(f"[-] {addr} disconnected")
 
-            # Receive the data in small chunks and retransmit it
+if __name__ == "__main__":
+    if not os.path.isdir(PATH):
+        os.makedirs(PATH)
+    busy = True
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((SERVER_IP, SERVER_PORT))
+    server.listen()
+    
+    threads = [None] * MAX_USER
 
-            data = connection.recv(1024)
-            if data:
-                print('received "%s"' % data.decode())
-                request = data.decode()
-                if request == 'list':
-                    connection.sendall((os.getcwd()).encode())
-                    files_folders(os.getcwd() + "/dist", 1, connection)
-            else:
-                print('no more data from', client_address)
-                break
-        finally:
-            # Clean up the connection
-            connection.close()
-    sock.close()
+    try:
+        while True:
+            conn, addr = server.accept()
+            first_not_busy = -1
+            for (i, thread) in enumerate(threads):
+                if (thread == None) or (type(thread) is threading.Thread and not thread.is_alive()):
+                    first_not_busy = i
+                    break
+            
+            if first_not_busy == -1:
+                conn.sendall("WARNING: Server is currently full".encode())
+                conn.close()
+                continue
 
+            conn.sendall("OK".encode())
+            print(f"[+] {addr} connected")
 
-if __name__ == '__main__':
-    server()
+            threads[first_not_busy] = threading.Thread(target=handle, args=(conn,))
+            threads[first_not_busy].start()
+
+    except KeyboardInterrupt:
+        print("Interrupt")
+    except Exception as e:
+        print(str(e))
+    finally:
+        #for thread in threads:
+        #    if thread != None:
+        #       thread.join()
+
+        server.close()
