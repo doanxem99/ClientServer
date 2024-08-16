@@ -36,6 +36,7 @@ def do_request(request, address_saved_files):
                 return server_msg
             global SERVER_IP
             SERVER_IP = request[0]
+            client.close()
             return "OK"
         else:
             client.connect((SERVER_IP, SERVER_PORT))
@@ -61,10 +62,11 @@ def call_list():
     data: list = []
     error: str = ""
     try:
+        print(f"{SERVER_IP}")
         client.connect((SERVER_IP, SERVER_PORT))
         server_msg = client.recv(CHUNK_SIZE).decode()
         if server_msg != "OK":
-            print(server_msg)
+            return (server_msg, data)
         else:
             client.send('l'.encode())
             while True:

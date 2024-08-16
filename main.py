@@ -1,4 +1,4 @@
-VERSION = "v1.0.1"
+VERSION = "v1.0.2"
 
 
 import tkinter as tk
@@ -117,6 +117,8 @@ class MenuBar(tk.Menu):
             self.client_server_folder.tree_Client.delete(item)
         # Add new item
         self.client_server_folder.list_folder(self.client_server_folder.tree_Client, '', folder_path)
+        global address_client
+        address_client = folder_path
 
         self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: Folder {folder_path} has been opened\n", "success")
         self.process_frame.text.insert("end", "----------------------------------\n", "info")
@@ -140,7 +142,7 @@ class MenuBar(tk.Menu):
                 release_info = response.json()
                 zip_url = release_info[0].get('zipball_url')
                 latest_version = release_info[0].get('tag_name')
-                if latest_version != current_version:
+                if latest_version > current_version:
                     answer = messagebox.askokcancel("Update", f"A new version {latest_version} is available. Do you want to update?")
                     if answer:
                         with open("./update.zip", "wb") as file:
@@ -150,10 +152,8 @@ class MenuBar(tk.Menu):
                             zip_ref.extractall(".")
                         os.remove("./update.zip")
                         # Move the new version to the current directory
-                        os.system(f"rm -r ./assets")
-                        os.system(f"rm -r ./dist")
                         os.system(f"mv ./doanxem99-ClientServer-*/* ./")
-                        os.system(f"rm -r ./doanxem99-ClientServer-*")
+                        os.system(f"rm -rf ./doanxem99-ClientServer-*")
                         messagebox.showinfo("Update", "The application has been updated. Please restart the application.")
                 elif announcement == True:
                     messagebox.showinfo("Update", "You are using the latest version.")
@@ -241,7 +241,10 @@ class InputInfor(ttk.LabelFrame):
             self.process_frame.text.insert("end", "----------------------------------\n", "info")
             self.process_frame.text.yview_moveto(1)
             return
-        if server_settings("IP", self.ip_address.get()) != "":
+        global address_saved_file
+        status = do_request([self.ip_address.get(), "IP"], address_saved_file)
+        if status != "OK":
+            print(status)
             self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: Cannot connect to the server\n", "error")
             self.process_frame.text.insert("end", "Please check your IP Address\n", "error")
             self.process_frame.text.insert("end", "----------------------------------\n", "info")
@@ -502,7 +505,7 @@ class ClientServerFolder(ttk.LabelFrame):
 
         if is_file == False:
             return
-        file_path = self.get_full_path(item)
+        file_path = address_client + "/" + self.get_full_path(item)
 
         data = (file_path, name_item, method)
         self.list_file_processing.update_treeview_processing(data)
@@ -637,7 +640,7 @@ class ProcessFrame(ttk.Frame):
             self.tip = tk.Label(self, text="Reset Server", bg="black", fg="white")
             self.tip.place(in_=self.reset_button, relx=0.5, rely=1.5, anchor="center")
         elif option == "run":
-            self.tip = tk.Label(self, text="Start Download", bg="black", fg="white")
+            self.tip = tk.Label(self, text="Start Download/Upload", bg="black", fg="white")
             self.tip.place(in_=self.button, relx=0.5, rely=1.5, anchor="center")
         elif option == "folder":
             self.tip = tk.Label(self, text="Open Folder", bg="black", fg="white")
@@ -690,15 +693,15 @@ class ProcessFrame(ttk.Frame):
         else:
             self.button.configure(style="Accent.TButton")
 
-            self.text.yview_moveto(1)
+            self.text.yview_moveto(1)   
+        global address_saved_file
 
         self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Start processing files\n", "success")
-        self.text.insert("end", "Number of threads: " + server_settings("MAX_THREADS", self.input_person.number_thread.get()) + "\n", "success")
+        self.text.insert("end", "Number of threads: " + do_request([str(int(self.input_person.number_thread.get())), "MAX_THREADS"], address_saved_file) + "\n", "success")
         self.text.insert("end", "----------------------------------\n", "info")
 
         # Stimulation download progress bar
         self.progress["value"] = 0
-        global address_saved_file
         
         downloaded = 0
         uploaded = 0
@@ -709,9 +712,11 @@ class ProcessFrame(ttk.Frame):
         for item in file_processing:
             if item[2] == "Download":
                 downloaded += 1
+                request = [item[1], item[2]]
             else:
                 uploaded += 1
-            status = do_request(item, address_saved_file)
+                request = [item[0], item[2]]
+            status = do_request(request, address_saved_file)
             if status == "Done":
                 self.text.insert("end", time.strftime("%H:%M:%S") + f" SUCCESS: File {item[1]} is {item[2]}ed\n", "success")
                 self.text.insert("end", "----------------------------------\n", "info")
