@@ -1,33 +1,39 @@
 import socket
 import threading
 import os
-from utilities import SERVER_IP, SERVER_PORT, server_send_file, server_receive_file, server_send_name_files
+from utilities import SERVER_PORT, server_send_file, server_receive_file, server_send_name_files
 
 MAX_USER = 2
 PATH = "Public Space"
 
-
 def handle(client):
     addr = client.getpeername()
+    num_threads = 5
     while True:
         client_choice = client.recv(1).decode()
         if client_choice == "u":
-            server_receive_file(client, PATH)
+            server_receive_file(client, PATH, num_threads)
         elif client_choice == "d":
-            server_send_file(client, PATH)
+            server_send_file(client, PATH, num_threads)
         elif client_choice == "l":
             server_send_name_files(client, PATH)
         elif client_choice == "e":
             client.close()
             break
+        elif client_choice == "t":
+            num_threads = int.from_bytes(client.recv(1))
+            client.close()
+            break
+            print(num_threads)
     print(f"[-] {addr} disconnected")
 
 if __name__ == "__main__":
+    server_ip = socket.gethostbyname(socket.gethostname())
     if not os.path.isdir(PATH):
         os.makedirs(PATH)
     busy = True
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server.bind((SERVER_IP, SERVER_PORT))
+    server.bind((server_ip, SERVER_PORT))
     server.listen()
     
     threads = [None] * MAX_USER
