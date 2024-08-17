@@ -47,9 +47,11 @@ def do_request(request, address_saved_files):
         elif request[1] == "MAX_THREADS":
             global num_threads
             num_threads = int(request[0])
-            client.send('t'.encode())
-            client.send(num_threads.to_bytes(1, "big"))
-            return str(num_threads)
+            client.send("t".encode())
+            client.send(request[0].encode())
+            client.send("e".encode())
+            client.close()
+            return request[0]
         else:      
             return process_request_list(client, request, address_saved_files, num_threads)
     except Exception as e:

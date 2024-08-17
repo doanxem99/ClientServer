@@ -129,7 +129,7 @@ class MenuBar(tk.Menu):
         self.client_server_folder.list_files()
 
 
-        self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Server has been reset\n", "success")
+        self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Server folder has been reset\n", "success")
         self.process_frame.text.insert("end", "----------------------------------\n", "info")
         self.process_frame.text.yview_moveto(1)
 
@@ -210,11 +210,11 @@ class InputInfor(ttk.LabelFrame):
         self.label_number_thread = ttk.Label(self, text="Number of Threads: ", font=("Arial", HEADING_2_SIZE))
         self.label_number_thread.grid(row=2, column=0, padx=0, pady=0, sticky="w")
 
-        self.number_thread = ttk.Scale(self, from_=1, to=20, orient="horizontal", length=50)
+        self.number_thread = ttk.Scale(self, from_=1, to=5, orient="horizontal", length=50)
         self.number_thread.grid(row=3, column=0, padx=5, pady=5, sticky="ew")
         # Display the current value of the scale
         self.number_thread.set(5)
-        self.display_number_thread = ttk.Combobox(self, values=[i for i in range(1, 21)], width=2)
+        self.display_number_thread = ttk.Combobox(self, values=[i for i in range(1, 6)], width=2)
         self.display_number_thread.grid(row=3, column=1, padx=5, pady=0, sticky="ew")
         self.display_number_thread.set(5)
 
@@ -521,9 +521,9 @@ class ClientServerFolder(ttk.LabelFrame):
     def list_files(self):
         (error, data) = call_list()
         if error != "":
-            messagebox.showerror("Error", "An error occurred while connecting to the server \n --------------- \n " + error)
+            messagebox.showerror("Error", "An error occurred while connecting to the server \n --------------- \n " + "You must enter the correct IP Address to connect to the server")
             self.process_frame.text.insert("end", time.strftime("%H:%M:%S") + " ERROR: An error occurred while connecting to the server\n", "error")
-            self.process_frame.text.insert("end", "Please check your internet connection\n", "error")
+            self.process_frame.text.insert("end", "You must enter the correct IP Address to connect to the server\n", "error")
             self.process_frame.text.insert("end", "----------------------------------\n", "info")
             self.process_frame.text.yview_moveto(1)
         else: 
@@ -595,7 +595,7 @@ class ProcessFrame(ttk.Frame):
         self.reset_button = ttk.Button(self, image=self.image_reset, style="Accent.TButton", command=self.reset_server)
         self.reset_button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="new")
 
-        self.button = ttk.Button(self, text="RUN", style="Accent.TButton", command=self.start_downloads, width=15)
+        self.button = ttk.Button(self, text="RUN", style="Accent.TButton", command=self.prepare_download, width=15)
         self.button.grid(row=1, column=1, columnspan=2, padx=(5, 5), pady=5, sticky="nwe")
 
         self.image_folder = Image.open(resource_path("assets/folder.png"))
@@ -683,6 +683,17 @@ class ProcessFrame(ttk.Frame):
     def delete_tree(self):
         self.text.delete("1.0", "end")
 
+
+    def prepare_download(self):
+        self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Start processing files\n", "success")
+        self.text.insert("end", "Number of threads: " + do_request([str(int(self.input_person.number_thread.get())), "MAX_THREADS"], address_saved_file) + "\n", "success")
+        self.text.insert("end", "WARNING: The process may take a long time to complete\n", "warning")
+        self.text.insert("end", "Please wait...\n", "info")
+        self.text.insert("end", "----------------------------------\n", "info")
+        self.text.yview_moveto(1)
+        bruh = threading.Thread(target=self.start_downloads).start()
+
+
     # Simulate download
     def start_downloads(self):
 
@@ -695,10 +706,6 @@ class ProcessFrame(ttk.Frame):
 
             self.text.yview_moveto(1)   
         global address_saved_file
-
-        self.text.insert("end", time.strftime("%H:%M:%S") + " SUCCESS: Start processing files\n", "success")
-        self.text.insert("end", "Number of threads: " + do_request([str(int(self.input_person.number_thread.get())), "MAX_THREADS"], address_saved_file) + "\n", "success")
-        self.text.insert("end", "----------------------------------\n", "info")
 
         # Stimulation download progress bar
         self.progress["value"] = 0
@@ -790,9 +797,17 @@ class FilesProcessing(ttk.LabelFrame):
         # Erase data when user double-clicks on the file
         self.tree_processing.bind(
             "<Double-1>", lambda event: self.erase_treeview_data(self.tree_processing.selection()[0]))
+        
+    def set_dependencies(self, process_frame):
+        self.process_frame = process_frame
 
     def drop(self, event):
         file_path = event.data
+        # Delete the file:// prefix and '}' or '{' characters
+        for character in "{}":
+            file_path = file_path.replace(character, "")
+
+
         name_file = os.path.basename(file_path)
         data = (file_path, name_file, "Upload")
         self.update_treeview_processing(data)
@@ -811,6 +826,9 @@ class FilesProcessing(ttk.LabelFrame):
         file_processing.clear()
 
     def update_treeview_processing(self, data):
+        if len(file_processing) == 0:
+            self.process_frame.progress["value"] = 0
+            self.process_frame.progress_label["text"] = "0%"
         file_processing.append(data)
         self.tree_processing.insert("", "end", values=((data[1], data[2] + "ing")))
 
@@ -896,12 +914,10 @@ class App(ttk.Frame):
         input_person.grid(row=0, column=0, padx=10, pady=(0, 10), sticky="nsew")
         process_frame.grid(row=0, column=1, padx=10, pady=(0, 0), sticky="nsew")
 
-
+        list_files_processing.set_dependencies(process_frame)
         client_server_folder.set_dependencies(list_files_processing)
-        
         process_frame.set_dependencies(list_files_processing, list_files_processed, input_person, menu_bar)
         input_person.set_dependencies(process_frame)
-
         menu_bar.set_dependencies(list_files_processing, list_files_processed, client_server_folder, process_frame)
         parent.config(menu=menu_bar)
 

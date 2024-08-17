@@ -3,7 +3,7 @@ import threading
 import os
 from utilities import SERVER_PORT, server_send_file, server_receive_file, server_send_name_files
 
-MAX_USER = 2
+MAX_USER = 200
 PATH = "Public Space"
 
 def handle(client):
@@ -18,11 +18,11 @@ def handle(client):
                 server_send_file(client, PATH, num_threads)
             elif client_choice == "l":
                 server_send_name_files(client, PATH)
+            elif client_choice == "t":
+                num_threads = int(client.recv(1).decode())
+                print(f"[-] {addr} changed number of threads to {num_threads}")
             elif client_choice == "e":
                 client.close()
-                break
-            elif client_choice == "t":
-                num_threads = int.from_bytes(client.recv(1))
                 break
         print(f"[-] {addr} disconnected")
     except Exception as e:
@@ -34,12 +34,10 @@ def resolve_hang_on(server, threads):
         while True:
             conn, addr = server.accept()
             first_not_busy = -1
-            print("hi2")
             for (i, thread) in enumerate(threads):
                 if (thread == None) or (type(thread) is threading.Thread and not thread.is_alive()):
                     first_not_busy = i
                     break
-            print("Success")
             
             if first_not_busy == -1:
                 conn.sendall("WARNING: Server is currently full".encode())
@@ -50,7 +48,7 @@ def resolve_hang_on(server, threads):
                 threads[first_not_busy] = threading.Thread(target=handle, args=(conn,))
                 threads[first_not_busy].start()
     except Exception as e:
-        print("reolve fn", str(e))
+        print("resolve function error: ", str(e))
     print("exit")
 
 if __name__ == "__main__":
@@ -61,6 +59,9 @@ if __name__ == "__main__":
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind((server_ip, SERVER_PORT))
     server.listen()
+
+    # Print server's IP address
+    print(f"Server is running at {server_ip}")
     
     threads = [None] * MAX_USER
     main_thread = threading.Thread(target=resolve_hang_on, args=(server, threads, ))
@@ -77,10 +78,10 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("Interrupt")
     except Exception as e:
-        print("main", str(e))
+        print("main error: ", str(e))
     finally:
         #for thread in threads:
         #    if thread != None:
         #       thread.join()
-
+        main_thread.close()
         server.close()
